@@ -12,13 +12,16 @@ import {
   Dimensions,
   ActivityIndicator,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
+import {TapGestureHandler, State, TapGestureHandlerStateChangeEvent} from 'react-native-gesture-handler';
 import translate from 'translate-google-api';
 import Tts from 'react-native-tts';
 
 import {scanOCR} from 'vision-camera-ocr';
 
 import ResultTextRegion from './components/ResultTextRegion';
+import Example from './components/TapZone';
 
 const width = Dimensions.get('window').width;
 const height = Dimensions.get('window').height;
@@ -27,13 +30,17 @@ const dictionary = require('./dictionary.json');
 
 // State Machine : ready -> scanned/validating -> output -> ready.
 
-function CameraScreen(props) {
+function CameraScreen() {
   const devices = useCameraDevices();
   const device = devices.back;
+
+  const tapRef = React.createRef<TapGestureHandler>();
+  const camera = React.useRef<Camera>(null)
 
   const lastOcrResult = useSharedValue(null);
   const isDetected = useSharedValue(0);
   const lastDetected = useSharedValue(0);
+  const ocrProcessLock = useSharedValue(false);
   const lastWord = useSharedValue('');
   const showText = useSharedValue('');
   const translateText = useSharedValue('');
@@ -61,6 +68,11 @@ function CameraScreen(props) {
         text = text.substring(0, indexOfNewLine);
         indexOfNewLine = text.indexOf('\n');
       }
+      var indexOfSpace = text.indexOf(' ');
+      while (indexOfSpace != -1) {
+        text = text.substring(0, indexOfSpace);
+        indexOfSpace = text.indexOf(' ');
+      }
 
       // Validation
       if (text.length > 45) {
@@ -71,6 +83,7 @@ function CameraScreen(props) {
         dictionary.words.find(item => item === text.toLowerCase()) == undefined
       ) {
         console.log('Word not exist : ', text);
+        lastWord.value = '';
         return;
       }
       if (lastWord.value == text) {
@@ -81,15 +94,27 @@ function CameraScreen(props) {
       // Execute translate and speak out.
       console.log('Run and speak : ', text);
       showText.value = text;
+      console.log('before translate');
       const trans = await translate(text, {
         from: 'en',
         to: 'zh-tw',
       });
       translateText.value = trans[0];
+      console.log('before handle speak');
       await handleSpeak();
+      console.log('after handle speak');
     }
     lastWord.value = text;
     setLabel(showText.value, translateText.value);
+  }
+
+  async function handleFocus(e: TapGestureHandlerStateChangeEvent) {
+
+    if (e.nativeEvent.state === State.ACTIVE) {
+      console.log('Focus at x : ', e.nativeEvent.x, '  y : ', e.nativeEvent.y);
+      await camera.current?.focus({x: e.nativeEvent.x, y: e.nativeEvent.y});
+      
+    }
   }
 
   async function setLabel(origin, translated) {
@@ -131,14 +156,18 @@ function CameraScreen(props) {
   return (
     <View style={styles.container}>
       <View style={styles.cameraView}>
-        <Camera
-          style={styles.camera}
-          device={device}
-          isActive={true}
-          preset="cif-352x288"
-          frameProcessor={frameProcessor}
-          frameProcessorFps={0.35}
-        />
+        <TapGestureHandler onHandlerStateChange={handleFocus} waitFor={tapRef} >
+          <Camera
+            ref={camera}
+            focusable={true}
+            style={styles.camera}
+            device={device}
+            isActive={true}
+            preset="cif-352x288"
+            frameProcessor={frameProcessor}
+            frameProcessorFps={0.35}
+          />
+        </TapGestureHandler>
       </View>
 
       <ResultTextRegion
@@ -171,16 +200,9 @@ const styles = StyleSheet.create({
     width: width,
     height: height,
   },
-  filter: {
-    backgroundColor: 'grey',
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-    opacity: 0.6,
-  },
   block: {
     position: 'absolute',
-    backgroundColor: 'white',
+    // backgroundColor: 'white',
     width: '75%',
     height: 50,
   },

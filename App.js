@@ -7,8 +7,9 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import {Camera} from 'react-native-vision-camera';
+import {GestureHandlerRootView} from 'react-native-gesture-handler';
 
-import CameraScreen from './src/CameraScreen';
+import CameraScreen from './src/CameraScreen.tsx';
 
 export default function App() {
   const [permission, setPermissionMsg] = useState(null);
@@ -43,7 +44,11 @@ export default function App() {
       </View>
     );
   } else if (appState == 'Camera') {
-    return <CameraScreen></CameraScreen>;
+    return (
+      <GestureHandlerRootView style={{flex: 1}}>
+        <CameraScreen></CameraScreen>
+      </GestureHandlerRootView>
+    );
   }
 }
 
