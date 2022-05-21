@@ -12,44 +12,59 @@ import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import CameraScreen from './src/CameraScreen.tsx';
 
 export default function App() {
-  const [permission, setPermissionMsg] = useState(null);
-  const [appState, setAppState] = useState('Welcome');
+  // const [permission, setPermissionMsg] = useState(null);
+  // const [appState, setAppState] = useState('Welcome');
 
-  async function getCameraPermission() {
-    const cameraPermission = await Camera.getCameraPermissionStatus();
-    setPermissionMsg(cameraPermission);
-  }
+  // async function getCameraPermission() {
+  //   const cameraPermission = await Camera.getCameraPermissionStatus();
+  //   setPermissionMsg(cameraPermission);
+  // }
 
-  async function requestCameraPermission() {
-    const newCameraPermission = await Camera.requestCameraPermission();
-    await getCameraPermission();
-    if (permission == 'authorized') {
-      setAppState('Camera');
-    }
-  }
+  // async function requestCameraPermission() {
+  //   const newCameraPermission = await Camera.requestCameraPermission();
+  //   await getCameraPermission();
+  //   if (permission == 'authorized') {
+  //     setAppState('Camera');
+  //   }
+  // }
 
-  if (appState == 'Welcome') {
-    return (
-      <View style={styles.container}>
-        <View style={styles.cameraView}></View>
-        <View style={styles.detectedResult}>
-          <TouchableOpacity
-            style={styles.startBtn}
-            onPress={requestCameraPermission}>
-            <View>
-              <Text>Start</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  } else if (appState == 'Camera') {
-    return (
-      <GestureHandlerRootView style={{flex: 1}}>
-        <CameraScreen></CameraScreen>
-      </GestureHandlerRootView>
-    );
-  }
+  // if (appState == 'Welcome') {
+  //   return (
+  //     <View style={styles.container}>
+  //       <View style={styles.cameraView}></View>
+  //       <View style={styles.detectedResult}>
+  //         <TouchableOpacity
+  //           style={styles.startBtn}
+  //           onPress={requestCameraPermission}>
+  //           <View>
+  //             <Text>Start</Text>
+  //           </View>
+  //         </TouchableOpacity>
+  //       </View>
+  //     </View>
+  //   );
+  // } else if (appState == 'Camera') {
+  //   return (
+  //     <GestureHandlerRootView style={{flex: 1}}>
+  //       <CameraScreen></CameraScreen>
+  //     </GestureHandlerRootView>
+  //   );
+  // }
+
+  const [permission, setPermission] = useState(false);
+
+  React.useEffect(() => {
+    (async () => {
+      const status = await Camera.requestCameraPermission();
+      setPermission(status === 'authorized');
+    })();
+  }, []);
+
+  return permission ? (
+    <GestureHandlerRootView style={{flex: 1}}>
+      <CameraScreen></CameraScreen>
+    </GestureHandlerRootView>
+  ) : null;
 }
 
 const styles = StyleSheet.create({

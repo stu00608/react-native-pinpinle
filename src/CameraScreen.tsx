@@ -1,27 +1,22 @@
 import Reanimated, {runOnJS, useSharedValue} from 'react-native-reanimated';
-import React, {useState, setState} from 'react';
+import React, {useState} from 'react';
 import {
   Camera,
   useCameraDevices,
   useFrameProcessor,
 } from 'react-native-vision-camera';
+import {View, StyleSheet, Dimensions, ActivityIndicator} from 'react-native';
 import {
-  View,
-  Text,
-  StyleSheet,
-  Dimensions,
-  ActivityIndicator,
-  TouchableOpacity,
-  Alert,
-} from 'react-native';
-import {TapGestureHandler, State, TapGestureHandlerStateChangeEvent} from 'react-native-gesture-handler';
+  TapGestureHandler,
+  State,
+  TapGestureHandlerStateChangeEvent,
+} from 'react-native-gesture-handler';
 import translate from 'translate-google-api';
 import Tts from 'react-native-tts';
 
 import {scanOCR} from 'vision-camera-ocr';
 
 import ResultTextRegion from './components/ResultTextRegion';
-import Example from './components/TapZone';
 
 const width = Dimensions.get('window').width;
 const height = Dimensions.get('window').height;
@@ -35,7 +30,7 @@ function CameraScreen() {
   const device = devices.back;
 
   const tapRef = React.createRef<TapGestureHandler>();
-  const camera = React.useRef<Camera>(null)
+  const camera = React.useRef<Camera>(null);
 
   const lastOcrResult = useSharedValue(null);
   const isDetected = useSharedValue(0);
@@ -51,6 +46,7 @@ function CameraScreen() {
   Tts.setDefaultPitch(1.02);
 
   async function processOCRResult(ocrObj) {
+    console.log(permission);
     const blocks = ocrObj.result.blocks;
     isDetected.value = blocks.length;
     if (blocks.length > 1) {
@@ -109,11 +105,9 @@ function CameraScreen() {
   }
 
   async function handleFocus(e: TapGestureHandlerStateChangeEvent) {
-
     if (e.nativeEvent.state === State.ACTIVE) {
       console.log('Focus at x : ', e.nativeEvent.x, '  y : ', e.nativeEvent.y);
       await camera.current?.focus({x: e.nativeEvent.x, y: e.nativeEvent.y});
-      
     }
   }
 
@@ -156,7 +150,7 @@ function CameraScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.cameraView}>
-        <TapGestureHandler onHandlerStateChange={handleFocus} waitFor={tapRef} >
+        <TapGestureHandler onHandlerStateChange={handleFocus} waitFor={tapRef}>
           <Camera
             ref={camera}
             focusable={true}
