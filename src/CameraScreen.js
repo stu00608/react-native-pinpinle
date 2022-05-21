@@ -18,75 +18,106 @@ import Tts from 'react-native-tts';
 
 import {scanOCR} from 'vision-camera-ocr';
 
+import ResultTextRegion from './components/ResultTextRegion';
+
 const width = Dimensions.get('window').width;
 const height = Dimensions.get('window').height;
+
+const dictionary = require('./dictionary.json');
+
+// State Machine : ready -> scanned/validating -> output -> ready.
 
 function CameraScreen(props) {
   const devices = useCameraDevices();
   const device = devices.back;
 
-  const ocrResult = useSharedValue('');
-  const [ocrText, setShowText] = useState('');
-  const [translateText, setTranslateText] = useState('');
-  const [ttsStatus, setTtsStatus] = useState('');
+  const lastOcrResult = useSharedValue(null);
+  const isDetected = useSharedValue(0);
+  const lastDetected = useSharedValue(0);
+  const lastWord = useSharedValue('');
+  const showText = useSharedValue('');
+  const translateText = useSharedValue('');
+  const [labelText, setLabelText] = useState({origin: '', translated: ''});
+  // const [isDetected, setIsDetected] = useState(false);
 
-  // Tts.addEventListener('tts-start', event => setTtsStatus('start'));
-  // Tts.addEventListener('tts-finish', event => setTtsStatus('finished'));
-  // Tts.addEventListener('tts-cancel', event => setTtsStatus('canceled'));
-  // Tts.getInitStatus();
   Tts.setDefaultRate(0.5);
   Tts.setDefaultPitch(1.02);
-  Tts.setDefaultLanguage('zh-TW');
 
-  async function processOCRResult(text) {
-    console.log('Reading = ', text);
-    if (text === '') {
-      setShowText('');
-      setTranslateText('');
-      return;
+  async function processOCRResult(ocrObj) {
+    const blocks = ocrObj.result.blocks;
+    isDetected.value = blocks.length;
+    if (blocks.length > 1) {
+      showText.value = '';
+      translateText.value = '';
+      console.log('More than one blocks detected');
+    } else if (blocks.length < 1) {
+      showText.value = '';
+      translateText.value = '';
+      console.log('No Result');
+    } else if (blocks.length == 1) {
+      var text = blocks[0].text;
+      var indexOfNewLine = text.indexOf('\n');
+      while (indexOfNewLine != -1) {
+        text = text.substring(0, indexOfNewLine);
+        indexOfNewLine = text.indexOf('\n');
+      }
+
+      // Validation
+      if (text.length > 45) {
+        console.log('Word is too long.');
+        return;
+      }
+      if (
+        dictionary.words.find(item => item === text.toLowerCase()) == undefined
+      ) {
+        console.log('Word not exist : ', text);
+        return;
+      }
+      if (lastWord.value == text) {
+        console.log('Same word detected');
+        return;
+      }
+
+      // Execute translate and speak out.
+      console.log('Run and speak : ', text);
+      showText.value = text;
+      const trans = await translate(text, {
+        from: 'en',
+        to: 'zh-tw',
+      });
+      translateText.value = trans[0];
+      await handleSpeak();
     }
-    setShowText(text);
-    const trans = await translate(text, {
-      from: 'en',
-      to: 'zh-tw',
-    });
-    // console.log(trans);
-    setTranslateText(trans[0]);
-
-    // console.log('tts', ttsStatus);
+    lastWord.value = text;
+    setLabel(showText.value, translateText.value);
   }
 
-  async function getCameraPermission() {
-    const cameraPermission = await Camera.getCameraPermissionStatus();
-    setPermissionMsg(cameraPermission);
+  async function setLabel(origin, translated) {
+    await setLabelText({origin: origin, translated: translated});
   }
 
-  async function requestCameraPermission() {
-    const newCameraPermission = await Camera.requestCameraPermission();
-    const availavleDevices = await Camera.getAvailableCameraDevices();
-    await getCameraPermission();
-  }
+  const sleep = milliseconds => {
+    return new Promise(resolve => setTimeout(resolve, milliseconds));
+  };
 
   async function handleSpeak() {
     // const voices = await Tts.voices();
     // console.log(voices);
     // await Tts.setDefaultLanguage(voice.language);
-    console.log('In handleSpeak : ', translateText);
-    console.log(typeof translateText);
-    Tts.speak(translateText);
+    await Tts.stop();
+    await Tts.setDefaultLanguage('en-IE');
+    await Tts.speak(showText.value);
+    await sleep(1000);
+    await Tts.setDefaultLanguage('zh-TW');
+    await Tts.speak(translateText.value);
   }
 
   const frameProcessor = useFrameProcessor(frame => {
     'worklet';
+
     const scannedOcr = scanOCR(frame);
-    // console.log(scannedOcr);
-    runOnJS(processOCRResult)(scannedOcr.result.text);
 
-    // ocrResult.value = scannedOcr.result.text;
-
-    // setOcrResult(scannedOcr.result.text);
-    // console.log(scannedOcr.result.text);
-    // console.log(scannedOcr.result.text);
+    runOnJS(processOCRResult)(scannedOcr);
   }, []);
 
   if (device == null) {
@@ -99,29 +130,20 @@ function CameraScreen(props) {
 
   return (
     <View style={styles.container}>
-      <Reanimated.View style={styles.cameraView}>
+      <View style={styles.cameraView}>
         <Camera
           style={styles.camera}
           device={device}
           isActive={true}
-          preset="medium"
+          preset="cif-352x288"
           frameProcessor={frameProcessor}
-          frameProcessorFps={1}
+          frameProcessorFps={0.35}
         />
-      </Reanimated.View>
-      <View style={styles.detectedResult}>
-        <TouchableOpacity
-          style={{
-            justifyContent: 'center',
-            alignItems: 'center',
-          }}
-          onPress={handleSpeak}>
-          <View>
-            <Text numberOfLines={1}>OCR Result = {ocrText}</Text>
-            <Text numberOfLines={1}>To Chinese = {translateText}</Text>
-          </View>
-        </TouchableOpacity>
       </View>
+
+      <ResultTextRegion
+        originalText={showText.value}
+        translatedText={translateText.value}></ResultTextRegion>
     </View>
   );
 }
@@ -162,14 +184,7 @@ const styles = StyleSheet.create({
     width: '75%',
     height: 50,
   },
-  detectedResult: {
-    flex: 1,
-    backgroundColor: 'yellow',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
-    height: '100%',
-  },
+
   homeBtnGroup: {
     flex: 1,
     backgroundColor: 'red',
