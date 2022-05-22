@@ -107,10 +107,21 @@ function CameraScreen() {
       }
 
       // Validation
-      if (text.length > 45 || text.length < 2) {
+      if (text.length > 45) {
         console.log('Word invalid. Length : ', text.length);
       } else if (lastWord.value == text) {
         console.log('Same word detected');
+      } else if (text.length == 1) {
+        console.log('Single word detected');
+        // await sleep(3000);
+        showText.value = text;
+        lastWord.value = text;
+
+        const zhimu = '字母';
+        Tts.stop();
+        Tts.setDefaultLanguage('zh-TW');
+        Tts.speak(zhimu.toString('utf8'));
+        handleWrongSpeak();
       } else if (
         dictionary.words.find(item => item === text.toLowerCase()) == undefined
       ) {
@@ -120,6 +131,7 @@ function CameraScreen() {
         }
         showText.value = text;
         lastWord.value = text;
+        handleWrongSpeak();
       } else {
         // Execute translate and speak out.
         console.log('Run and speak : ', text);
@@ -142,7 +154,6 @@ function CameraScreen() {
   async function translateAndSpeak() {
     const text = showText.value;
     const translatedText = translateText.value;
-
     if (text == '' || translatedText == '') {
       if (!wrong.isPlaying()) {
         wrong.play();
@@ -150,7 +161,6 @@ function CameraScreen() {
       console.log('Empty text');
       return;
     }
-
     handleSpeak();
   }
 
@@ -175,12 +185,32 @@ function CameraScreen() {
     }
     speakMutex.value = true;
     Tts.stop();
-    Tts.setDefaultLanguage('en-IE');
+    Tts.setDefaultLanguage('en-US');
+    for (let index = 0; index < showText.value.length; index++) {
+      const element = showText.value[index];
+      Tts.speak(element);
+    }
+    await sleep(2500);
     Tts.speak(showText.value);
-    await sleep(700);
+    await sleep(1000);
     Tts.setDefaultLanguage('zh-TW');
     Tts.speak(translateText.value);
-    await sleep(700);
+    await sleep(1000);
+    speakMutex.value = false;
+  }
+
+  async function handleWrongSpeak() {
+    await sleep(1000);
+    if (speakMutex.value) {
+      return;
+    }
+    speakMutex.value = true;
+    Tts.stop();
+    Tts.setDefaultLanguage('en-US');
+    for (let index = 0; index < showText.value.length; index++) {
+      const element = showText.value[index];
+      Tts.speak(element);
+    }
     speakMutex.value = false;
   }
 
