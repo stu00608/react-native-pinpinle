@@ -144,6 +144,9 @@ function CameraScreen() {
     const translatedText = translateText.value;
 
     if (text == '' || translatedText == '') {
+      if (!wrong.isPlaying()) {
+        wrong.play();
+      }
       console.log('Empty text');
       return;
     }
