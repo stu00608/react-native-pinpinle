@@ -1,5 +1,5 @@
 import Reanimated, {runOnJS, useSharedValue} from 'react-native-reanimated';
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   Camera,
   useCameraDevices,
@@ -13,15 +13,37 @@ import {
 } from 'react-native-gesture-handler';
 import translate from 'translate-google-api';
 import Tts from 'react-native-tts';
-
+import Sound from 'react-native-sound';
 import {scanOCR} from 'vision-camera-ocr';
 
 import ResultTextRegion from './components/ResultTextRegion';
+import correct from './correct.mp3';
+import incorrect from './incorrect.mp3';
 
 const width = Dimensions.get('window').width;
 const height = Dimensions.get('window').height;
 
 const dictionary = require('./dictionary.json');
+
+Sound.setCategory('Playback');
+var right = new Sound(correct, Sound.MAIN_BUNDLE, error => {
+  if (error) {
+    console.log('failed to load the sound', error);
+    return;
+  }
+  // if loaded successfully
+  console.log('Loaded file : correct.mp3');
+});
+
+Sound.setCategory('Playback');
+var wrong = new Sound(incorrect, Sound.MAIN_BUNDLE, error => {
+  if (error) {
+    console.log('failed to load the sound', error);
+    return;
+  }
+  // if loaded successfully
+  console.log('Loaded file : incorrect.mp3');
+});
 
 // State Machine : ready -> scanned/validating -> output -> ready.
 
@@ -36,6 +58,7 @@ function CameraScreen() {
   const isDetected = useSharedValue(0);
   const lastDetected = useSharedValue(0);
   const ocrProcessLock = useSharedValue(false);
+  const speakMutex = useSharedValue(false);
   const lastWord = useSharedValue('');
   const showText = useSharedValue('');
   const translateText = useSharedValue('');
@@ -45,17 +68,30 @@ function CameraScreen() {
   Tts.setDefaultRate(0.5);
   Tts.setDefaultPitch(1.02);
 
+  // Tts.addEventListener('tts-progress', event => (speakMutex.value = true));
+  // Tts.addEventListener('tts-finish', event => (speakMutex.value = false));
+
+  useEffect(() => {
+    right.setVolume(0.6);
+    wrong.setVolume(1);
+    return () => {
+      right.release();
+      wrong.release();
+    };
+  }, []);
+
   async function processOCRResult(ocrObj) {
-    console.log(permission);
+    // console.log(permission);
     const blocks = ocrObj.result.blocks;
     isDetected.value = blocks.length;
     if (blocks.length > 1) {
-      showText.value = '';
-      translateText.value = '';
+      // showText.value = '';
+      // translateText.value = '';
       console.log('More than one blocks detected');
     } else if (blocks.length < 1) {
       showText.value = '';
       translateText.value = '';
+      lastWord.value = text;
       console.log('No Result');
     } else if (blocks.length == 1) {
       var text = blocks[0].text;
@@ -71,37 +107,48 @@ function CameraScreen() {
       }
 
       // Validation
-      if (text.length > 45) {
-        console.log('Word is too long.');
-        return;
-      }
-      if (
+      if (text.length > 45 || text.length < 2) {
+        console.log('Word invalid. Length : ', text.length);
+      } else if (lastWord.value == text) {
+        console.log('Same word detected');
+      } else if (
         dictionary.words.find(item => item === text.toLowerCase()) == undefined
       ) {
         console.log('Word not exist : ', text);
-        lastWord.value = '';
-        return;
+        if (!wrong.isPlaying()) {
+          wrong.play();
+        }
+        showText.value = text;
+        lastWord.value = text;
+      } else {
+        // Execute translate and speak out.
+        console.log('Run and speak : ', text);
+        if (!speakMutex.value && !right.isPlaying() && !wrong.isPlaying()) {
+          showText.value = text;
+          right.play();
+          const trans = await translate(text, {
+            from: 'en',
+            to: 'zh-tw',
+          });
+          translateText.value = trans[0];
+          handleSpeak();
+          lastWord.value = text;
+        }
       }
-      if (lastWord.value == text) {
-        console.log('Same word detected');
-        return;
-      }
-
-      // Execute translate and speak out.
-      console.log('Run and speak : ', text);
-      showText.value = text;
-      console.log('before translate');
-      const trans = await translate(text, {
-        from: 'en',
-        to: 'zh-tw',
-      });
-      translateText.value = trans[0];
-      console.log('before handle speak');
-      await handleSpeak();
-      console.log('after handle speak');
     }
-    lastWord.value = text;
     setLabel(showText.value, translateText.value);
+  }
+
+  async function translateAndSpeak() {
+    const text = showText.value;
+    const translatedText = translateText.value;
+
+    if (text == '' || translatedText == '') {
+      console.log('Empty text');
+      return;
+    }
+
+    handleSpeak();
   }
 
   async function handleFocus(e: TapGestureHandlerStateChangeEvent) {
@@ -120,15 +167,18 @@ function CameraScreen() {
   };
 
   async function handleSpeak() {
-    // const voices = await Tts.voices();
-    // console.log(voices);
-    // await Tts.setDefaultLanguage(voice.language);
-    await Tts.stop();
-    await Tts.setDefaultLanguage('en-IE');
-    await Tts.speak(showText.value);
-    await sleep(1000);
-    await Tts.setDefaultLanguage('zh-TW');
-    await Tts.speak(translateText.value);
+    if (speakMutex.value) {
+      return;
+    }
+    speakMutex.value = true;
+    Tts.stop();
+    Tts.setDefaultLanguage('en-IE');
+    Tts.speak(showText.value);
+    await sleep(700);
+    Tts.setDefaultLanguage('zh-TW');
+    Tts.speak(translateText.value);
+    await sleep(700);
+    speakMutex.value = false;
   }
 
   const frameProcessor = useFrameProcessor(frame => {
@@ -157,16 +207,17 @@ function CameraScreen() {
             style={styles.camera}
             device={device}
             isActive={true}
-            preset="cif-352x288"
+            preset="high"
             frameProcessor={frameProcessor}
-            frameProcessorFps={0.35}
+            frameProcessorFps={0.5}
           />
         </TapGestureHandler>
       </View>
 
       <ResultTextRegion
         originalText={showText.value}
-        translatedText={translateText.value}></ResultTextRegion>
+        translatedText={translateText.value}
+        onPress={translateAndSpeak}></ResultTextRegion>
     </View>
   );
 }

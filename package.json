@@ -15,6 +15,7 @@
     "react-native": "0.68.2",
     "react-native-gesture-handler": "^2.4.2",
     "react-native-reanimated": "^2.8.0",
+    "react-native-sound": "^0.11.2",
     "react-native-tts": "^4.1.0",
     "react-native-vision-camera": "^2.13.3",
     "translate-google-api": "^1.0.4",
