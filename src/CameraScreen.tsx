@@ -68,8 +68,11 @@ function CameraScreen() {
   Tts.setDefaultRate(0.5);
   Tts.setDefaultPitch(1.02);
 
-  // Tts.addEventListener('tts-progress', event => (speakMutex.value = true));
-  // Tts.addEventListener('tts-finish', event => (speakMutex.value = false));
+  
+  Tts.addEventListener('tts-start', (event) => (speakMutex.value = true));
+  Tts.addEventListener('tts-finish', event => (speakMutex.value = false));
+  Tts.addEventListener('tts-progress', (event) => console.log("progress", event));
+  Tts.addEventListener('tts-cancel', (event) => console.log("cancel", event));
 
   useEffect(() => {
     right.setVolume(0.6);
@@ -130,6 +133,7 @@ function CameraScreen() {
           wrong.play();
         }
         showText.value = text;
+        translateText.value = '';
         lastWord.value = text;
         handleWrongSpeak();
       } else {
@@ -186,12 +190,14 @@ function CameraScreen() {
     speakMutex.value = true;
     Tts.stop();
     Tts.setDefaultLanguage('en-US');
-    for (let index = 0; index < showText.value.length; index++) {
-      const element = showText.value[index];
+    const text = showText.value.toLowerCase();
+    console.log("\n\n\n", text, "\n\n\n");
+    for (let index = 0; index < text.length; index++) {
+      const element = text[index];
       Tts.speak(element);
     }
     await sleep(2500);
-    Tts.speak(showText.value);
+    Tts.speak(text);
     await sleep(1000);
     Tts.setDefaultLanguage('zh-TW');
     Tts.speak(translateText.value);
@@ -207,8 +213,10 @@ function CameraScreen() {
     speakMutex.value = true;
     Tts.stop();
     Tts.setDefaultLanguage('en-US');
-    for (let index = 0; index < showText.value.length; index++) {
-      const element = showText.value[index];
+    const text = showText.value.toLowerCase();
+    console.log("\n\n\n", text, "\n\n\n");
+    for (let index = 0; index < text.length; index++) {
+      const element = text[index];
       Tts.speak(element);
     }
     speakMutex.value = false;

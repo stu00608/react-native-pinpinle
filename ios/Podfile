@@ -19,9 +19,7 @@ target 'PinPinLe' do
     :app_path => "#{Pod::Config.instance.installation_root}/.."
   )
 
-  pod 'TextToSpeech', :path => '../node_modules/react-native-tts'
 
-  pod 'RNSound', :path => '../node_modules/react-native-sound'
 
   target 'PinPinLeTests' do
     inherit! :complete
